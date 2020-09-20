@@ -10,22 +10,23 @@ library(forcats)
 library(easyGgplot2)
 source("~/Google Drive/bin/batadalab_scrnaseq_utils.R")
 
-setwd("gdT_paper_analysis/")
 # -------------------------------------------------------
 # Read gene expression data
 # -------------------------------------------------------
 # P03E06
-sobj_e06 <- get_scrnaseq_data("p03e06/gdt_pbmc")
-gem1 <- data.frame(GetAssayData(sobj_e06, slot = "counts"))
-colnames(gem1) <- paste("P03E06", colnames(gem1), sep = "_")
-filtered_cells <- read.delim("data/HD6_cells_filtered.txt", stringsAsFactors = F, header = F)$V1
+gem1 <- get_scrnaseq_data("p03e06/gdt_pbmc") %>%
+  GetAssayData(slot = "counts") %>%
+  as.data.frame() %>%
+  set_colnames(paste("P03E06", colnames(.), sep = "_"))
+filtered_cells <- read.delim("data/raw/HD6_cells_filtered.txt", stringsAsFactors = F, header = F)$V1
 gem1 <- gem1[, filtered_cells]
 
 # P03E04_P03E05
-sobj_e0405 <- get_scrnaseq_data("p03e04_plus_p03e05/gdt_pbmc")
-gem2 <- data.frame(GetAssayData(sobj_e0405, slot = "counts"))
-colnames(gem2) <- paste("P03E04E05", colnames(gem2), sep = "_")
-filtered_cells <- read.delim("data/HD45_cells_filtered.txt", stringsAsFactors = F, header = F)$V1
+gem2 <- get_scrnaseq_data("p03e04_plus_p03e05/gdt_pbmc") %>%
+  GetAssayData(slot = "counts") %>%
+  as.data.frame() %>%
+  set_colnames(paste("P03E04E05", colnames(.), sep = "_"))
+filtered_cells <- read.delim("data/raw/HD45_cells_filtered.txt", stringsAsFactors = F, header = F)$V1
 gem2 <- gem2[, filtered_cells]
 
 # -------------------------------------------------------
@@ -68,7 +69,7 @@ p1 <- DimPlot(sobj.combined, label = T) + NoLegend() + NoAxes()
 # Check expression of TRDC for cluster filtering
 # -------------------------------------------------------
 vdj_HD6 <- read.delim(
-  "data/VDJ_data/HD6_vdj_list.txt", 
+  "data/raw/VDJ_data/HD6_vdj_list.txt", 
   stringsAsFactors = F, 
   header = F
 ) %>%
@@ -78,7 +79,7 @@ vdj_HD6 <- read.delim(
 TRDC_E06 <- vdj_HD6$V1[grep("TRDC", vdj_HD6$V2)]
 
 vdj_HD45 <- read.delim(
-  "data/VDJ_data/HD45_vdj_list.txt", 
+  "data/raw/VDJ_data/HD45_vdj_list.txt", 
   stringsAsFactors = F,
   header = F
 ) %>%
@@ -263,7 +264,6 @@ ggplot(df, aes(x=ClusterID, y=pct, fill=factor(gene))) + geom_bar(stat = "identi
   )
 dev.off()
 
-
 # Print counts for plot
 counts <- data.frame(
   matrix(NA, nrow = 3, ncol = length(unique(Idents(sobj.combined)))), 
@@ -278,49 +278,92 @@ for (ID in colnames(counts)) {
 }
 counts
 
+# # -------------------------------------------------------
+# # Chi-square test of independence for TCR delta genes
+# # -------------------------------------------------------
+# # prepare data for chi square test
+# df <- t(counts) %>%
+#   as.data.frame() %>%
+#   tibble::rownames_to_column("clusterID") %>%
+#   mutate(macroCluster = ifelse(clusterID %in% c("c.gd1", "c.gd2"), 0, 1))
+# 
+# macro1 <- length(WhichCells(sobj.combined, idents = c("c.gd1", "c.gd2")))
+# macro2 <- length(WhichCells(sobj.combined, idents = c("c.gd3", "c.gd4", "c.gd5")))
+# 
+# # chi-square test of independence for TRDC and TRGV9
+# #res <- chisq.test(aggregate(df$TRDC, by=list(Category=df$macroCluster), FUN=sum))
+# #res$expected
+# #res$observed
+# #res$p.value
+# #res$statistic
+# 
+# observed <- c(
+#   sum(df$TRDC[which(df$macroCluster == 0)]), 
+#   sum(df$TRDC[which(df$macroCluster == 1)]) 
+# )
+# p <- sum(observed) / ncol(sobj.combined)
+# expected <- c(p * macro1, p*macro2)
+# chisq <- sum((observed - expected) ^ 2 / expected)
+# pchisq(chisq, df=1)
+# 
+# 
+# # chi-square test of independence for TRDV2 and macroCluster
+# #chisq.test(aggregate(df$TRDV2, by=list(Category=df$macroCluster), FUN=sum))
+# observed <- c(
+#   sum(df$TRDV2[which(df$macroCluster == 0)]), 
+#   sum(df$TRDV2[which(df$macroCluster == 1)]) 
+# )
+# p <- sum(observed) / ncol(sobj.combined)
+# expected <- c(p * macro1, p*macro2)
+# chisq <- sum((observed - expected) ^ 2 / expected)
+# pchisq(chisq, df=1)
+# 
+# 
+# # chi-square test of independence for TRGV9 and macroCluster
+# #chisq.test(aggregate(df$TRGV9, by=list(Category=df$macroCluster), FUN=sum))
+# observed <- c(
+#   sum(df$TRGV9[which(df$macroCluster == 0)]), 
+#   sum(df$TRGV9[which(df$macroCluster == 1)]) 
+# )
+# p <- sum(observed) / ncol(sobj.combined)
+# expected <- c(p * macro1, p*macro2)
+# chisq <- sum((observed - expected) ^ 2 / expected)
+# pchisq(chisq, df=1)
+
 # -------------------------------------------------------
-# Find subtype markers
+# Show IL17 and IFNG pathway genes -Feature plots 1E
 # -------------------------------------------------------
-markers <- FindConservedMarkers(
+genes <- c("SOX4", "CCR7", "LEF1")
+p <- FeaturePlot(
   sobj.combined, 
-  ident.1 = "c.gd1", 
-  test.use="MAST", 
-  only.pos=TRUE, 
-  grouping.var = "stim", 
-  logfc.threshold = 0.2
+  features = genes, 
+  pt.size = 0.01, 
+  combine = FALSE, 
+  min.cutoff = 0, 
+  max.cutoff = 3
 )
-markers$gene <- rownames(markers)
-markers$cluster <- "c.gd1"
-for (ID in c("c.gd2", "c.gd3","c.gd4", "c.gd5")) {
-  m <- FindConservedMarkers(
-    sobj.combined, 
-    ident.1 = ID, 
-    test.use="MAST", 
-    only.pos=TRUE, 
-    grouping.var = "stim", 
-    logfc.threshold = 0.2
-  )
-  m <- m %>%
-    mutate(
-      gene = rownames(m),
-      cluster = ID
-    )
-  markers <- rbind(markers, m)
+for(i in 1:length(p)) {
+  p[[i]] <- p[[i]] + NoAxes() + NoLegend()
+  pdf(paste("Figures/Figure1/FeaturePlots/", genes[i], ".pdf", sep = ""), width = 2, height = 2)
+  plot(p[[i]])
+  dev.off()
 }
-table(markers$cluster)
-write.table(markers, file="data/processed/PBMC_subtype_markers.txt", quote = F, sep = "\t")
 
-# Select top markers per cluster by p_val_adj
-top60 <- markers[which(markers$gene %in% rownames(sobj.combined)), ] %>% 
-    group_by(cluster) %>% 
-    top_n(n = -60, wt = P03E06_p_val_adj)
-table(top60$cluster)
-
-# Heatmap top markers per cluster
-tiff("Figures/Figure1/Fig1E.tiff")
-DoHeatmap(sobj.combined, features = top60$gene, size = 3, raster = F) + FontSize(y.text = 5)
-dev.off()
-
+genes <- c("IFNG", "RORC", "CCR6")
+p <- FeaturePlot(
+  sobj.combined, 
+  features = genes, 
+  pt.size = 0.01, 
+  combine = FALSE, 
+  min.cutoff = 0, 
+  max.cutoff = 0.125
+)
+for(i in 1:length(p)) {
+  p[[i]] <- p[[i]] + NoAxes() + NoLegend()
+  pdf(paste("Figures/Figure1/FeaturePlots/", genes[i], ".pdf", sep = ""), width = 2, height = 2)
+  plot(p[[i]])
+  dev.off()
+}
 
 # -------------------------------------------------------
 # Supervised pathway enrichment with scID
@@ -356,9 +399,8 @@ for (ct in unique(markers$cluster)) {
 
 # HD6
 HD6_labels <- Idents(sobj.combined)[grep("E06", names(Idents(sobj.combined)))]
-names(HD6_labels) <- unlist(lapply(names(HD6_labels), function(x) strsplit(x, "_")[[1]][2]))
 # Keep only gdT cells
-HD6_gem <- as.data.frame(GetAssayData(sobj_e06))[, names(HD6_labels)]
+HD6_gem <- counts_to_cpm(gem1[, names(HD6_labels)])
 scID_res <- scid_multiclass(
   target_gem = HD6_gem, 
   weights = weights, 
@@ -448,6 +490,49 @@ ggplot(df.m, aes(x = variable, y = value, fill = labels)) +
     axis.line.y = element_line(colour = "black"), 
     legend.position = "top"
   )
+dev.off()
+
+# -------------------------------------------------------
+# Find subtype markers
+# -------------------------------------------------------
+markers <- FindConservedMarkers(
+  sobj.combined, 
+  ident.1 = "c.gd1", 
+  test.use="MAST", 
+  only.pos=TRUE, 
+  grouping.var = "stim", 
+  logfc.threshold = 0.2
+)
+markers$gene <- rownames(markers)
+markers$cluster <- "c.gd1"
+for (ID in c("c.gd2", "c.gd3","c.gd4", "c.gd5")) {
+  m <- FindConservedMarkers(
+    sobj.combined, 
+    ident.1 = ID, 
+    test.use="MAST", 
+    only.pos=TRUE, 
+    grouping.var = "stim", 
+    logfc.threshold = 0.2
+  )
+  m <- m %>%
+    mutate(
+      gene = rownames(m),
+      cluster = ID
+    )
+  markers <- rbind(markers, m)
+}
+table(markers$cluster)
+write.table(markers, file="data/processed/PBMC_subtype_markers.txt", quote = F, sep = "\t")
+
+# Select top markers per cluster by p_val_adj
+top60 <- markers[which(markers$gene %in% rownames(sobj.combined)), ] %>% 
+    group_by(cluster) %>% 
+    top_n(n = -60, wt = P03E06_p_val_adj)
+table(top60$cluster)
+
+# Heatmap top markers per cluster
+tiff("Figures/Figure1/Fig1G.tiff")
+DoHeatmap(sobj.combined, features = top60$gene, size = 3, raster = F) + FontSize(y.text = 5)
 dev.off()
 
 # -------------------------------------------------------
