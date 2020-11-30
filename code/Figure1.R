@@ -130,6 +130,20 @@ Idents(sobj.combined) <- factor(
   levels = c("c.gd1", "c.gd2", "c.gd3","c.gd4", "c.gd5")
 )
 
+# Save cluster IDs of cells in supplementary table
+
+cell_metadata <- data.frame(Idents(sobj.combined)) %>%
+  tibble::rownames_to_column("Barcode")
+colnames(cell_metadata) <- c("Barcode", "Cluster ID")
+cell_metadata$`Donor ID` <- unlist(lapply(cell_metadata$Barcode, function(x) strsplit(x, "_")[[1]][1]))
+
+write.table(
+  cell_metadata, 
+  file = "data/processed/PBMC_clusterIDs.txt", 
+  quote = F,
+  row.names = F, 
+  sep = "\t"
+)
 # -------------------------------------------------------
 # Visualization 
 # -------------------------------------------------------

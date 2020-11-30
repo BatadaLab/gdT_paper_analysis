@@ -10,6 +10,7 @@ library(forcats)
 library(easyGgplot2)
 source("~/Google Drive/bin/batadalab_scrnaseq_utils.R")
 
+setwd("gdT_paper_analysis/")
 # -------------------------------------------------------
 # Load data 
 # -------------------------------------------------------
@@ -71,10 +72,6 @@ sobj.combined <- subset(
   sobj.combined, 
   cells = filtered_cells$V1
 )
-
-
-
-
 
 pdf("Figures/Figure3/Fig3A.pdf", width = 2, height = 2)
 DimPlot(
@@ -150,18 +147,18 @@ ggplot(
   scale_fill_manual(values=c("lightgrey","black")) + 
   geom_point(data=df[c(TRDC_BC1, TRDC_BC2), ], colour="black", size=1)
 dev.off()
-# # alternative TRDC plot
-# p <- FeaturePlot(
-#   sobj.combined, 
-#   "TRDC.NT-026437.11.3", 
-#   pt.size = 0.01, 
-#   combine = FALSE, 
-#   min.cutoff = 0, 
-#   max.cutoff = 3
-# )
-# pdf("Figures/Figure3/Fig3C_TRDC.pdf", width = 2, height = 2.3)
-# plot(p[[1]] + NoAxes() + NoLegend())
-# dev.off()
+# alternative TRDC plot
+p <- FeaturePlot(
+  sobj.combined,
+  "TRDC.NT-026437.11.3",
+  pt.size = 0.01,
+  combine = FALSE,
+  min.cutoff = 0,
+  max.cutoff = 3
+)
+pdf("Figures/Figure3/Fig3C_TRDC_v2.pdf", width = 2, height = 2.3)
+plot(p[[1]] + NoAxes() + NoLegend())
+dev.off()
 
 # TRDV2 - Figure 3C(middle)
 vdj_labels <- rep("nothing", ncol(sobj.combined))
@@ -297,4 +294,37 @@ for(i in 1:length(p)) {
 }
 
 
+# -------------------------------------------------------
+# Save results
+# -------------------------------------------------------
+saveRDS(sobj.combined, file = "data/processed/BRCA_sobj_combined.rds")
 
+# Save cluster IDs of cells in supplementary table
+
+cell_metadata <- data.frame(Idents(sobj.combined)) %>%
+  tibble::rownames_to_column("Barcode")
+colnames(cell_metadata) <- c("Barcode", "Cluster ID")
+cell_metadata$`Donor ID` <- unlist(lapply(cell_metadata$Barcode, function(x) strsplit(x, "_")[[1]][1]))
+
+cell_metadata <- cell_metadata %>%
+  mutate(
+    "Cluster ID" = case_when(
+      `Cluster ID` %in% c(0, 7) ~ "CD4-T", 
+      `Cluster ID` %in% c(1, 2) ~ "CD8-T", 
+      `Cluster ID` == 3 ~ "B", 
+      `Cluster ID` == 4 ~ "gd-T.3", 
+      `Cluster ID` == 5 ~ "T-reg", 
+      `Cluster ID` == 6 ~ "gd-T.2", 
+      `Cluster ID` == 8 ~ "Mph", 
+      `Cluster ID` == 9 ~ "gd-T.9", 
+      `Cluster ID` %in% c(10, 11, 12) ~ "Unclassified"
+    )
+  )
+
+write.table(
+  cell_metadata, 
+  file = "data/processed/BC_cell_metadata.txt", 
+  quote = F,
+  row.names = F, 
+  sep = "\t"
+)
